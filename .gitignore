@@ -2,3 +2,4 @@ server
 .DS_Store
 server.crt
 server.key
+server

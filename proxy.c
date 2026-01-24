@@ -16,6 +16,8 @@ void handle_request(SSL *ssl);
 void send_local_file(SSL *ssl, const char *path);
 void proxy_remote_file(SSL *ssl, const char *request);
 int file_exists(const char *filename);
+// Helper function
+int sendAll(SSL *ssl, const char *msg, size_t len);
 
 // TODO: Parse command-line arguments (-b/-r/-p) and override defaults.
 // Keep behavior consistent with the project spec.
@@ -47,11 +49,15 @@ int main(int argc, char *argv[]) {
     // Loads the certificates and keys into the SSL_CTX object ctx
     // int SSL_CTX_use_certificate_file(SSL_CTX *ctx, const char *file, int type);
     if (SSL_CTX_use_certificate_file(ssl_ctx, "server.crt", SSL_FILETYPE_PEM ) <= 0) {
-        ERR_print_errors_fp(stderr);
+        fprintf(stderr, "Error: Failed to server key");
         exit(EXIT_FAILURE);
     }
-    if (SSL_CTX_use_certificate_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM ) <= 0) {
-        ERR_print_errors_fp(stderr);
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM ) <= 0) {
+        fprintf(stderr, "Error: Failed to upload key");
+        exit(EXIT_FAILURE);
+    }
+    if (!SSL_CTX_check_private_key(ssl_ctx)) {
+        fprintf(stderr, "Error: No matching certificate w/ Private Key\n");
         exit(EXIT_FAILURE);
     }
     
@@ -96,15 +102,47 @@ int main(int argc, char *argv[]) {
         
         // TODO: Create SSL structure for this connection and perform SSL handshake
         SSL *ssl = NULL;
-        //int SSL_accept(SSL *ssl);
-        //
+        ssl = SSL_new(ssl_ctx);
+        // //int SSL_accept(SSL *ssl);
+        // //SSL_in_init() returns 1 if the SSL/TLS state 
+        // //machine is currently processing or awaiting handshake messages, or 0 otherwise.
+        // SSL_in_connect_init(ssl); // Send the handshake as the client to server
+        // while (SSL_get_state(ssl) == TLS_ST_OK);
+        // // Handshake message sending/processing has completed
+        // //Maybe have a time out fo this 
+        // // Then we are going to accept the connection from the client
+        // SSL_in_accept_init(ssl);
+        if (ssl == NULL) {
+            ERR_print_errors_fp(stderr);
+            close(client_socket);
+            continue;  // or return; depending on your loop structure
+        }
+
+        //Sets the file descriptor fd as the input/output 
+        //facility for the TLS/SSL (encrypted) side of ssl
+        //Attach this SSL object to that socket so SSL knows where to read from and write to.
+        if (SSL_set_fd(ssl, client_socket) != 1) {
+            ERR_print_errors_fp(stderr);
+            SSL_free(ssl);
+            close(client_socket);
+            continue;
+        }
+
+        if (SSL_accept(ssl) != 1) {   // perform TLS handshake (server side)
+            ERR_print_errors_fp(stderr);
+            SSL_free(ssl);
+            close(client_socket);
+            continue;
+        }
         
         if (ssl != NULL) {
             handle_request(ssl);
         }
         
         // TODO: Clean up SSL connection
-        
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+
         
         close(client_socket);
     }
@@ -132,17 +170,22 @@ void handle_request(SSL *ssl) {
 
     // TODO: Read request from SSL connection
     bytes_read = 0;
+
+    //int SSL_read(SSL *ssl, void *buf, int num);
+    bytes_read = SSL_read(ssl, buffer, BUFFER_SIZE - 1);
     
+    // THERE are no bytes read, if its greater than 0 operation was successful & it gives
+    // Number of bytes read
     if (bytes_read <= 0) {
         return;
     }
 
     buffer[bytes_read] = '\0';
-    char *request = malloc(strlen(buffer) + 1);
-    strcpy(request, buffer);
+    char *request = malloc(strlen(buffer) + 1); // Creates a new buffer called request
+    strcpy(request, buffer); // Copies the request into the new buffer
     
-    char *method = strtok(request, " ");
-    char *file_name = strtok(NULL, " ");
+    char *method = strtok(request, " "); // Parses request
+    char *file_name = strtok(NULL, " "); // Parses the request
     file_name++;
     if (strlen(file_name) == 0) {
         strcat(file_name, "index.html");
@@ -156,6 +199,26 @@ void handle_request(SSL *ssl) {
         printf("Proxying remote file %s\n", file_name);
         proxy_remote_file(ssl, buffer);
     }
+}
+
+int sendAll(SSL *ssl, const char *msg, size_t len) {
+    int total_sent = 0;
+    const char * curr_pointer = msg;
+    while (total_sent < len) {
+        //int SSL_write(SSL *ssl, const void *buf, int num);
+        int bytes_written = SSL_write(ssl, curr_pointer, (int)len - total_sent);
+        if (bytes_written > 0) {
+            // The write was successful
+            curr_pointer += bytes_written;
+            total_sent += bytes_written;
+        }
+        else {
+            int err = SSL_get_error(ssl, bytes_written);
+            fprintf(stderr, "SSL_write failed \n");
+            return -1;
+        }
+    }
+    return 0;
 }
 
 // TODO: Serve local file with correct Content-Type header
@@ -172,7 +235,10 @@ void send_local_file(SSL *ssl, const char *path) {
                          "<!DOCTYPE html><html><head><title>404 Not Found</title></head>"
                          "<body><h1>404 Not Found</h1></body></html>";
         // TODO: Send response via SSL
-        
+        //int SSL_write(SSL *ssl, const void *buf, int num);
+        if (sendAll(ssl, response, strlen(response)) != 0) {
+            return;
+        }
         return;
     }
 
@@ -186,13 +252,18 @@ void send_local_file(SSL *ssl, const char *path) {
     }
 
     // TODO: Send response header and file content via SSL
-    
+    if (sendAll(ssl, response, strlen(response)) != 0) {
+        // Error in sending
+        return; 
+    }
 
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
         // TODO: Send file data via SSL
-        
+        // Error in sending
+        if (sendAll(ssl, buffer, bytes_read) != 0) {
+            return;
+        }
     }
-
     fclose(file);
 }
 
@@ -224,7 +295,10 @@ void proxy_remote_file(SSL *ssl, const char *request) {
 
     while ((bytes_read = recv(remote_socket, buffer, sizeof(buffer), 0)) > 0) {
         // TODO: Forward response to client via SSL
-        
+        if (sendAll(ssl, buffer, bytes_read) != 0) {
+            // Error in sending
+            return;
+        }
     }
 
     close(remote_socket);
