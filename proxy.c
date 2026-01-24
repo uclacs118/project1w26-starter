@@ -33,10 +33,27 @@ int main(int argc, char *argv[]) {
 
     // TODO: Initialize OpenSSL library
     
-    
+    if (SSL_library_init() <= 0 || OpenSSL_add_ssl_algorithms() <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
     // TODO: Create SSL context and load certificate/private key files
     // Files: "server.crt" and "server.key"
     SSL_CTX *ssl_ctx = NULL;
+    const SSL_METHOD *method = TLS_server_method();
+    ssl_ctx = SSL_CTX_new(method);
+
+    // Loads the certificates and keys into the SSL_CTX object ctx
+    // int SSL_CTX_use_certificate_file(SSL_CTX *ctx, const char *file, int type);
+    if (SSL_CTX_use_certificate_file(ssl_ctx, "server.crt", SSL_FILETYPE_PEM ) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+    if (SSL_CTX_use_certificate_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM ) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
     
     if (ssl_ctx == NULL) {
         fprintf(stderr, "Error: SSL context not initialized\n");
@@ -79,7 +96,8 @@ int main(int argc, char *argv[]) {
         
         // TODO: Create SSL structure for this connection and perform SSL handshake
         SSL *ssl = NULL;
-        
+        //int SSL_accept(SSL *ssl);
+        //
         
         if (ssl != NULL) {
             handle_request(ssl);
