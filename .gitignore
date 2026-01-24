@@ -3,3 +3,5 @@ server
 server.crt
 server.key
 server
+binaryfile
+downloadfile
