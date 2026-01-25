@@ -7,7 +7,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 20000
 #define LOCAL_PORT_TO_CLIENT 8443
 #define REMOTE_HOST "127.0.0.1"
 #define REMOTE_PORT 5001
@@ -212,14 +212,24 @@ void handle_request(SSL *ssl) {
         strcat(parsed_name, "index.html");
     }
     char *http_version = strtok(NULL, " ");
-    printf("Sending local file %s\n", parsed_name);
-    if (file_exists(parsed_name)) {
+    // Route all .ts files to remote proxy handler
+    if(strstr(parsed_name, ".ts")){
+        printf("Proxying remote file %s\n", parsed_name);
+        proxy_remote_file(ssl, original_request);
+    }
+    // Otherwise, check if file exists locally
+    else if (file_exists(parsed_name)) {
         printf("Sending local file %s\n", parsed_name);
         send_local_file(ssl, parsed_name);
-    } else {
-        printf("Proxying remote file %s\n", file_name);
+    }
+    else {
+        printf("File %s not found locally. Proxying remote file.\n", parsed_name);
         proxy_remote_file(ssl, buffer);
     }
+    
+    
+    // cleanup
+    free(request);
 }
 
 int send_all(SSL *ssl, const char *msg, size_t len) {
@@ -235,7 +245,7 @@ int send_all(SSL *ssl, const char *msg, size_t len) {
         }
         else {
             int err = SSL_get_error(ssl, bytes_written);
-            fprintf(stderr, "SSL_write failed \n");
+            fprintf(stderr, "SSL_write failed with error code %d\n", err);
             return -1;
         }
     }
@@ -319,13 +329,13 @@ void proxy_remote_file(SSL *ssl, const char *request) {
         close(remote_socket);
         return;
     }
-
     send(remote_socket, request, strlen(request), 0);
 
     while ((bytes_read = recv(remote_socket, buffer, sizeof(buffer), 0)) > 0) {
         // TODO: Forward response to client via SSL
         if (send_all(ssl, buffer, (size_t)bytes_read) != 0) {
             // Error in sending
+            close(remote_socket);
             return;
         }
     }
