@@ -35,16 +35,17 @@ int main(int argc, char *argv[]) {
 
     // TODO: Initialize OpenSSL library
     
-    if (SSL_library_init() <= 0 || OpenSSL_add_ssl_algorithms() <= 0) {
+    // docs say that SSL_library_init() is deprecated and always returns 1, also OpenSSL_add_ssl_algorithms() is a synonym for SSL_library_init()
+    // https://wiki.openssl.org/index.php/Library_Initialization
+    if (OPENSSL_init_ssl(0, NULL) <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
 
     // TODO: Create SSL context and load certificate/private key files
     // Files: "server.crt" and "server.key"
-    SSL_CTX *ssl_ctx = NULL;
     const SSL_METHOD *method = TLS_server_method();
-    ssl_ctx = SSL_CTX_new(method);
+    SSL_CTX *ssl_ctx = SSL_CTX_new(method);
 
     // Loads the certificates and keys into the SSL_CTX object ctx
     // int SSL_CTX_use_certificate_file(SSL_CTX *ctx, const char *file, int type);
@@ -101,8 +102,7 @@ int main(int argc, char *argv[]) {
         printf("Accepted connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         
         // TODO: Create SSL structure for this connection and perform SSL handshake
-        SSL *ssl = NULL;
-        ssl = SSL_new(ssl_ctx);
+        SSL *ssl = SSL_new(ssl_ctx);
         // //int SSL_accept(SSL *ssl);
         // //SSL_in_init() returns 1 if the SSL/TLS state 
         // //machine is currently processing or awaiting handshake messages, or 0 otherwise.
@@ -149,6 +149,7 @@ int main(int argc, char *argv[]) {
 
     close(server_socket);
     // TODO: Clean up SSL context
+    SSL_CTX_free(ssl_ctx);
     
     return 0;
 }
