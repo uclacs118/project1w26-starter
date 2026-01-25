@@ -162,10 +162,27 @@ int file_exists(const char *filename) {
     return 0;
 }
 
+char *parseFileName(const char *fileName) {
+    static char buffer[BUFFER_SIZE];
+    size_t i = 0, j = 0;
+
+    while (fileName[i] != '\0' && j < BUFFER_SIZE - 1) {
+    if (strncmp(&fileName[i], "%20", 3) == 0) {
+        buffer[j++] = ' ';
+        i += 3;
+    } 
+    else {
+        buffer[j++] = fileName[i++];
+    }
+    }
+    buffer[j] = '\0';
+    return buffer;
+}
 // TODO: Parse HTTP request, extract file path, and route to appropriate handler
 // Consider: URL decoding, default files, routing logic for different file types
 void handle_request(SSL *ssl) {
     char buffer[BUFFER_SIZE];
+    char * parsedName;
     ssize_t bytes_read;
 
     // TODO: Read request from SSL connection
@@ -187,14 +204,15 @@ void handle_request(SSL *ssl) {
     char *method = strtok(request, " "); // Parses request
     char *file_name = strtok(NULL, " "); // Parses the request
     file_name++;
-    if (strlen(file_name) == 0) {
-        strcat(file_name, "index.html");
+    parsedName = parseFileName(file_name);
+    if (strlen(parsedName) == 0) {
+        strcat(parsedName, "index.html");
     }
     char *http_version = strtok(NULL, " ");
-
-    if (file_exists(file_name)) {
-        printf("Sending local file %s\n", file_name);
-        send_local_file(ssl, file_name);
+    printf("Sending local file %s\n", parsedName);
+    if (file_exists(parsedName)) {
+        printf("Sending local file %s\n", parsedName);
+        send_local_file(ssl, parsedName);
     } else {
         printf("Proxying remote file %s\n", file_name);
         proxy_remote_file(ssl, buffer);
@@ -303,11 +321,10 @@ void proxy_remote_file(SSL *ssl, const char *request) {
 
     while ((bytes_read = recv(remote_socket, buffer, sizeof(buffer), 0)) > 0) {
         // TODO: Forward response to client via SSL
-        if (sendAll(ssl, buffer, bytes_read) != 0) {
+        if (sendAll(ssl, buffer, (size_t)bytes_read) != 0) {
             // Error in sending
             return;
         }
     }
-
     close(remote_socket);
 }
