@@ -32,15 +32,37 @@ int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
     // TODO: Initialize OpenSSL library
-    
+    SSL_library_init();
+    SSL_load_error_strings();
+    OpenSSL_add_all_algorithms();
     
     // TODO: Create SSL context and load certificate/private key files
     // Files: "server.crt" and "server.key"
-    SSL_CTX *ssl_ctx = NULL;
+    SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_client_method());
     
     if (ssl_ctx == NULL) {
         fprintf(stderr, "Error: SSL context not initialized\n");
         exit(EXIT_FAILURE);
+    }
+
+    // Load server certificate
+    if (SSL_CTX_use_certificate_file(ssl_ctx, "server.crt", SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        fprintf(stderr, "Failed to load certificate: %s\n", "server.crt");
+        exit(1);
+    }
+
+    // Load private key
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        fprintf(stderr, "Failed to load private key: %s\n", "server.key");
+        exit(1);
+    }
+
+    // Verify private key matches certificate
+    if (!SSL_CTX_check_private_key(ssl_ctx)) {
+        fprintf(stderr, "Private key does not match the certificate public key\n");
+        exit(1);
     }
 
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -78,21 +100,45 @@ int main(int argc, char *argv[]) {
         printf("Accepted connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         
         // TODO: Create SSL structure for this connection and perform SSL handshake
-        SSL *ssl = NULL;
+        SSL *ssl = SSL_new(ssl_ctx);
+        if (!ssl) {
+            fprintf(stderr, "SSL_new failed\n");
+            close(client_socket);
+            continue;
+        }
+
+        if (SSL_set_fd(ssl, client_socket) == 0) {
+            fprintf(stderr, "SSL_set_fd failed\n");
+            SSL_free(ssl);
+            close(client_socket);
+            continue;
+        }
         
-        
+        if (SSL_accept(ssl) <= 0) {
+            fprintf(stderr, "SSL_accept failed\n");
+            ERR_print_errors_fp(stderr);
+
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+            close(client_socket);
+            continue;
+        }
+            
         if (ssl != NULL) {
             handle_request(ssl);
         }
         
         // TODO: Clean up SSL connection
         
-        
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+
         close(client_socket);
     }
 
     close(server_socket);
     // TODO: Clean up SSL context
+    SSL_CTX_free(ssl_ctx);
     
     return 0;
 }
