@@ -17,7 +17,8 @@ void send_local_file(SSL *ssl, const char *path);
 void proxy_remote_file(SSL *ssl, const char *request);
 int file_exists(const char *filename);
 // Helper function
-int sendAll(SSL *ssl, const char *msg, size_t len);
+char *parse_file_name(const char *file_name);
+int send_all(SSL *ssl, const char *msg, size_t len);
 
 // TODO: Parse command-line arguments (-b/-r/-p) and override defaults.
 // Keep behavior consistent with the project spec.
@@ -163,17 +164,17 @@ int file_exists(const char *filename) {
     return 0;
 }
 
-char *parseFileName(const char *fileName) {
+char *parse_file_name(const char *file_name) {
     static char buffer[BUFFER_SIZE];
     size_t i = 0, j = 0;
 
-    while (fileName[i] != '\0' && j < BUFFER_SIZE - 1) {
-    if (strncmp(&fileName[i], "%20", 3) == 0) {
+    while (file_name[i] != '\0' && j < BUFFER_SIZE - 1) {
+    if (strncmp(&file_name[i], "%20", 3) == 0) {
         buffer[j++] = ' ';
         i += 3;
     } 
     else {
-        buffer[j++] = fileName[i++];
+        buffer[j++] = file_name[i++];
     }
     }
     buffer[j] = '\0';
@@ -183,7 +184,7 @@ char *parseFileName(const char *fileName) {
 // Consider: URL decoding, default files, routing logic for different file types
 void handle_request(SSL *ssl) {
     char buffer[BUFFER_SIZE];
-    char * parsedName;
+    char * parsed_name;
     ssize_t bytes_read;
 
     // TODO: Read request from SSL connection
@@ -201,26 +202,27 @@ void handle_request(SSL *ssl) {
     buffer[bytes_read] = '\0';
     char *request = malloc(strlen(buffer) + 1); // Creates a new buffer called request
     strcpy(request, buffer); // Copies the request into the new buffer
+    //printf("Received request:\n%s\n", request);
     
     char *method = strtok(request, " "); // Parses request
     char *file_name = strtok(NULL, " "); // Parses the request
     file_name++;
-    parsedName = parseFileName(file_name);
-    if (strlen(parsedName) == 0) {
-        strcat(parsedName, "index.html");
+    parsed_name = parse_file_name(file_name);
+    if (strlen(parsed_name) == 0) {
+        strcat(parsed_name, "index.html");
     }
     char *http_version = strtok(NULL, " ");
-    printf("Sending local file %s\n", parsedName);
-    if (file_exists(parsedName)) {
-        printf("Sending local file %s\n", parsedName);
-        send_local_file(ssl, parsedName);
+    printf("Sending local file %s\n", parsed_name);
+    if (file_exists(parsed_name)) {
+        printf("Sending local file %s\n", parsed_name);
+        send_local_file(ssl, parsed_name);
     } else {
         printf("Proxying remote file %s\n", file_name);
         proxy_remote_file(ssl, buffer);
     }
 }
 
-int sendAll(SSL *ssl, const char *msg, size_t len) {
+int send_all(SSL *ssl, const char *msg, size_t len) {
     int total_sent = 0;
     const char * curr_pointer = msg;
     while (total_sent < len) {
@@ -255,7 +257,7 @@ void send_local_file(SSL *ssl, const char *path) {
                          "<body><h1>404 Not Found</h1></body></html>";
         // TODO: Send response via SSL
         //int SSL_write(SSL *ssl, const void *buf, int num);
-        if (sendAll(ssl, response, strlen(response)) != 0) {
+        if (send_all(ssl, response, strlen(response)) != 0) {
             return;
         }
         return;
@@ -279,7 +281,7 @@ void send_local_file(SSL *ssl, const char *path) {
     }
 
     // TODO: Send response header and file content via SSL
-    if (sendAll(ssl, response, strlen(response)) != 0) {
+    if (send_all(ssl, response, strlen(response)) != 0) {
         // Error in sending
         return; 
     }
@@ -287,7 +289,7 @@ void send_local_file(SSL *ssl, const char *path) {
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
         // TODO: Send file data via SSL
         // Error in sending
-        if (sendAll(ssl, buffer, bytes_read) != 0) {
+        if (send_all(ssl, buffer, bytes_read) != 0) {
             return;
         }
     }
@@ -322,7 +324,7 @@ void proxy_remote_file(SSL *ssl, const char *request) {
 
     while ((bytes_read = recv(remote_socket, buffer, sizeof(buffer), 0)) > 0) {
         // TODO: Forward response to client via SSL
-        if (sendAll(ssl, buffer, (size_t)bytes_read) != 0) {
+        if (send_all(ssl, buffer, (size_t)bytes_read) != 0) {
             // Error in sending
             return;
         }
