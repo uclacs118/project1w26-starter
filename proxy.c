@@ -165,8 +165,8 @@ void handle_request(SSL *ssl) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
 
-    // TODO: Read request from SSL connection
-    bytes_read = 0;
+    // DONE: Read request from SSL connection
+    bytes_read = SSL_read(ssl, buffer, BUFFER_SIZE - 1);
     
     if (bytes_read <= 0) {
         return;
@@ -206,8 +206,9 @@ void send_local_file(SSL *ssl, const char *path) {
                          "Content-Type: text/html; charset=UTF-8\r\n\r\n"
                          "<!DOCTYPE html><html><head><title>404 Not Found</title></head>"
                          "<body><h1>404 Not Found</h1></body></html>";
-        // TODO: Send response via SSL
         
+        // DONE: Send response via SSL
+        SSL_write(ssl, response, strlen(response));
         return;
     }
 
@@ -220,12 +221,12 @@ void send_local_file(SSL *ssl, const char *path) {
                    "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
     }
 
-    // TODO: Send response header and file content via SSL
-    
+    // DONE: Send response header and file content via SSL
+    SSL_write(ssl, response, strlen(response));
 
     while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-        // TODO: Send file data via SSL
-        
+        // DONE: Send file data via SSL
+        SSL_write(ssl, buffer, bytes_read);
     }
 
     fclose(file);
