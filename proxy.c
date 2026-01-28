@@ -31,12 +31,12 @@ int main(int argc, char *argv[]) {
 
     parse_args(argc, argv);
 
-    // TODO: Initialize OpenSSL library
+    // DONE: Initialize OpenSSL library
     SSL_library_init();
     SSL_load_error_strings();
     OpenSSL_add_all_algorithms();
     
-    // TODO: Create SSL context and load certificate/private key files
+    // DONE: Create SSL context and load certificate/private key files
     // Files: "server.crt" and "server.key"
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_client_method());
     
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
         
         printf("Accepted connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         
-        // TODO: Create SSL structure for this connection and perform SSL handshake
+        // DONE: Create SSL structure for this connection and perform SSL handshake
         SSL *ssl = SSL_new(ssl_ctx);
         if (!ssl) {
             fprintf(stderr, "SSL_new failed\n");
@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
             handle_request(ssl);
         }
         
-        // TODO: Clean up SSL connection
+        // DONE: Clean up SSL connection
         
         SSL_shutdown(ssl);
         SSL_free(ssl);
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
     }
 
     close(server_socket);
-    // TODO: Clean up SSL context
+    // DONE: Clean up SSL context
     SSL_CTX_free(ssl_ctx);
     
     return 0;
