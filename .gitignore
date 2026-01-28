@@ -1,2 +1,5 @@
 server
 *.pdf
+server.crt
+server.key
+*.zip
