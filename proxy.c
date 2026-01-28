@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     
     // DONE: Create SSL context and load certificate/private key files
     // Files: "server.crt" and "server.key"
-    SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_client_method());
+    SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_server_method());
     
     if (ssl_ctx == NULL) {
         fprintf(stderr, "Error: SSL context not initialized\n");
@@ -159,6 +159,30 @@ int file_exists(const char *filename) {
     return 0;
 }
 
+// handle % and spaces in the file path
+void url_decode(char *dst, const char *src) {
+    while (*src) {
+        if (*src == '%') {
+            if (src[1] && src[2]) {
+                char hex[3] = {src[1], src[2], '\0'};
+                int value;
+                sscanf(hex, "%x", &value);
+                
+                *dst++ = (char)value;
+                src += 3;
+            } else {
+                *dst++ = *src++;
+            }
+        } else if (*src == '+') {
+            *dst++ = ' '; 
+            src++;
+        } else {
+            *dst++ = *src++;
+        }
+    }
+    *dst = '\0'; 
+}
+
 // DONE: Parse HTTP request, extract file path, and route to appropriate handler
 // Consider: URL decoding, default files, routing logic for different file types
 void handle_request(SSL *ssl) {
@@ -177,8 +201,10 @@ void handle_request(SSL *ssl) {
     strcpy(request, buffer);
     
     char *method = strtok(request, " ");
-    char *file_name = strtok(NULL, " ");
-    file_name++;
+    char *path = strtok(NULL, " ");
+    char file_name[256];
+    url_decode(file_name, path + 1);
+
     if (strlen(file_name) == 0) {
         strcat(file_name, "index.html");
     }
