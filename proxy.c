@@ -278,6 +278,13 @@ void proxy_remote_file(SSL *ssl, const char *request) {
     remote_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (remote_socket == -1) {
         printf("Failed to create remote socket\n");
+        const char *bad_gateway = 
+            "HTTP/1.1 502 Bad Gateway\r\n"
+            "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+            "Content-Length: 113\r\n"
+            "<!DOCTYPE html><html><head><title>502 Bad Gateway</title></head>"
+            "<body><h1>502 Bad Gateway</h1></body></html>";
+        SSL_write(ssl, bad_gateway, strlen(bad_gateway));
         return;
     }
 
@@ -287,6 +294,13 @@ void proxy_remote_file(SSL *ssl, const char *request) {
 
     if (connect(remote_socket, (struct sockaddr*)&remote_addr, sizeof(remote_addr)) == -1) {
         printf("Failed to connect to remote server\n");
+        const char *bad_gateway = 
+            "HTTP/1.1 502 Bad Gateway\r\n"
+            "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+            "Content-Length: 113\r\n"
+            "<!DOCTYPE html><html><head><title>502 Bad Gateway</title></head>"
+            "<body><h1>502 Bad Gateway</h1></body></html>";
+        SSL_write(ssl, bad_gateway, strlen(bad_gateway));
         close(remote_socket);
         return;
     }
