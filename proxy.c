@@ -90,6 +90,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+
     if (listen(server_socket, 10) == -1) {
         perror("listen failed");
         exit(EXIT_FAILURE);
