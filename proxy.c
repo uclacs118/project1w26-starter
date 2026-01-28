@@ -159,7 +159,7 @@ int file_exists(const char *filename) {
     return 0;
 }
 
-// TODO: Parse HTTP request, extract file path, and route to appropriate handler
+// DONE: Parse HTTP request, extract file path, and route to appropriate handler
 // Consider: URL decoding, default files, routing logic for different file types
 void handle_request(SSL *ssl) {
     char buffer[BUFFER_SIZE];
@@ -193,7 +193,7 @@ void handle_request(SSL *ssl) {
     }
 }
 
-// TODO: Serve local file with correct Content-Type header
+// DONE: Serve local file with correct Content-Type header
 // Support: .html, .txt, .jpg, .m3u8, and files without extension
 void send_local_file(SSL *ssl, const char *path) {
     FILE *file = fopen(path, "rb");
@@ -216,9 +216,18 @@ void send_local_file(SSL *ssl, const char *path) {
     if (strstr(path, ".html")) {
         response = "HTTP/1.1 200 OK\r\n"
                    "Content-Type: text/html; charset=UTF-8\r\n\r\n";
-    } else {
+    } else if (strstr(path, ".txt")) {
         response = "HTTP/1.1 200 OK\r\n"
                    "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
+    } else if (strstr(path, ".jpg")) {
+        response = "HTTP/1.1 200 OK\r\n"
+                   "Content-Type: image/jpeg\r\n\r\n";
+    } else if (strstr(path, ".m3u8")) {
+        response = "HTTP/1.1 200 OK\r\n"
+                   "Content-Type: application/vnd.apple.mpegurl\r\n\r\n";
+    } else {
+        response = "HTTP/1.1 200 OK\r\n"
+                   "Content-Type: application/octet-stream\r\n\r\n";
     }
 
     // DONE: Send response header and file content via SSL
@@ -232,7 +241,7 @@ void send_local_file(SSL *ssl, const char *path) {
     fclose(file);
 }
 
-// TODO: Forward request to backend server and relay response to client
+// DONE: Forward request to backend server and relay response to client
 // Handle connection failures appropriately
 void proxy_remote_file(SSL *ssl, const char *request) {
     int remote_socket;
@@ -259,8 +268,8 @@ void proxy_remote_file(SSL *ssl, const char *request) {
     send(remote_socket, request, strlen(request), 0);
 
     while ((bytes_read = recv(remote_socket, buffer, sizeof(buffer), 0)) > 0) {
-        // TODO: Forward response to client via SSL
-        
+        // DONE: Forward response to client via SSL
+        SSL_write(ssl, buffer, bytes_read);
     }
 
     close(remote_socket);
