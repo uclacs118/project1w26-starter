@@ -7,21 +7,28 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-#define BUFFER_SIZE 1024
-#define LOCAL_PORT_TO_CLIENT 8443
-#define REMOTE_HOST "127.0.0.1"
-#define REMOTE_PORT 5001
+const int BUFFER_SIZE = 1024;
+int LOCAL_PORT_TO_CLIENT = 8443;
+char* REMOTE_HOST = "127.0.0.1";
+int REMOTE_PORT = 5001;
 
 void handle_request(SSL *ssl);
 void send_local_file(SSL *ssl, const char *path);
 void proxy_remote_file(SSL *ssl, const char *request);
 int file_exists(const char *filename);
 
-// TODO: Parse command-line arguments (-b/-r/-p) and override defaults.
+// DONE: Parse command-line arguments (-b/-r/-p) and override defaults.
 // Keep behavior consistent with the project spec.
 void parse_args(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-b") == 0) {
+            LOCAL_PORT_TO_CLIENT = atoi(argv[i + 1]);
+        } else if (strcmp(argv[i], "-r") == 0) {
+            REMOTE_HOST = argv[i + 1];
+        } else if (strcmp(argv[i], "-p") == 0) {
+            REMOTE_PORT = atoi(argv[i + 1]);
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
